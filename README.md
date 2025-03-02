@@ -28,9 +28,19 @@ js 版算法可以参考：https://github.com/timdream/wordcloud2.js
    wasm-pack build --target web
    ```
 
-3.运行js项目
+3. 运行js项目
 
     ```sh
     cd web
     npx http-server . -p 8080
     ```
+
+## 项目结构：
+```
+wordcloud/
+├── README.md
+├── src/
+│   └── lib.rs          // rust 实现的计算逻辑
+└── web/
+    ├── index.html      // 主页, js 控制的交互部分
+    └── wordCloud.js    // 词云类
