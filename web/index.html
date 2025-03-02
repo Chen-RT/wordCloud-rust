@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rust WASM WordCloud Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 600px;
+        }
+        
+        textarea {
+            width: 100%;
+            height: 150px;
+            padding: 10px;
+        }
+        
+        .options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .option {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        canvas {
+            border: 1px solid #ddd;
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <h1>Rust + WebAssembly WordCloud</h1>
+    
+    <div class="controls">
+        <textarea id="wordInput" placeholder="Enter words here, one per line. You can add weight by adding a comma followed by a number (e.g. 'word,5')"></textarea>
+        
+        <div class="options">
+            <div class="option">
+                <label for="minSize">Min Size:</label>
+                <input type="number" id="minSize" value="10" min="1" max="50">
+            </div>
+            
+            <div class="option">
+                <label for="maxSize">Max Size:</label>
+                <input type="number" id="maxSize" value="60" min="10" max="200">
+            </div>
+            
+            <div class="option">
+                <label for="rotation">Rotation Range:</label>
+                <input type="number" id="rotation" value="0" min="0" max="90">
+            </div>
+            
+            <div class="option">
+                <label for="spiral">Spiral Type:</label>
+                <select id="spiral">
+                    <option value="archimedean">Archimedean</option>
+                    <option value="rectangular">Rectangular</option>
+                </select>
+            </div>
+        </div>
+        
+        <button id="generate">Generate WordCloud</button>
+    </div>
+    
+    <canvas id="wordcloudCanvas" width="600" height="400"></canvas>
+    
+    <script type="module">
+        import { WordCloudRenderer } from './wordcloud.js';
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            let wordcloudRenderer;
+            
+            // Initialize after page load
+            const init = async () => {
+                try {
+                    const options = {
+                        fontFamily: 'Arial, sans-serif',
+                        fontWeight: 'bold',
+                        minSize: parseInt(document.getElementById('minSize').value),
+                        maxSize: parseInt(document.getElementById('maxSize').value),
+                        rotationRange: parseInt(document.getElementById('rotation').value),
+                        spiral: document.getElementById('spiral').value,
+                        colors: ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
+                                '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+                    };
+                    
+                    wordcloudRenderer = new WordCloudRenderer('wordcloudCanvas', options);
+                    
+                    // Wait for WASM to load
+                    await new Promise(resolve => {
+                        const checkWasm = () => {
+                            if (wordcloudRenderer.wasmLoaded) {
+                                resolve();
+                            } else {
+                                setTimeout(checkWasm, 100);
+                            }
+                        };
+                        checkWasm();
+                    });
+                    
+                    // Enable button
+                    document.getElementById('generate').disabled = false;
+                } catch (error) {
+                    console.error('Initialization error:', error);
+                }
+            };
+            
+            // Parse input text into words array
+            const parseWords = (text) => {
+                return text.split('\n')
+                    .map(line => line.trim())
+                    .filter(line => line.length > 0)
+                    .map(line => {
+                        const parts = line.split(',');
+                        const text = parts[0].trim();
+                        const weight = parts.length > 1 ? parseFloat(parts[1]) : 1;
+                        return { text, weight };
+                    });
+            };
+            
+            // Generate button click
+            document.getElementById('generate').addEventListener('click', async () => {
+                if (!wordcloudRenderer || !wordcloudRenderer.wasmLoaded) {
+                    alert('WASM is still loading. Please wait...');
+                    return;
+                }
+                
+                // Update options
+                wordcloudRenderer.options.minSize = parseInt(document.getElementById('minSize').value);
+                wordcloudRenderer.options.maxSize = parseInt(document.getElementById('maxSize').value);
+                wordcloudRenderer.options.rotationRange = parseInt(document.getElementById('rotation').value);
+                wordcloudRenderer.options.spiral = document.getElementById('spiral').value;
+                
+                // Update WASM instance options
+                wordcloudRenderer.wordcloudInstance.set_rotation_range(wordcloudRenderer.options.rotationRange);
+                wordcloudRenderer.wordcloudInstance.set_spiral(wordcloudRenderer.options.spiral);
+                
+                // Parse input
+                const input = document.getElementById('wordInput').value;
+                const words = parseWords(input);
+                
+                if (words.length === 0) {
+                    alert('Please enter some words.');
+                    return;
+                }
+                
+                try {
+                    // Generate word cloud
+                    await wordcloudRenderer.generate(words);
+                } catch (error) {
+                    console.error('Generation error:', error);
+                    alert('An error occurred while generating the word cloud.');
+                }
+            });
+            
+            // Initialize on page load
+            init();
+        });
+    </script>
+</body>
+</html>
